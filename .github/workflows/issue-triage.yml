@@ -19,6 +19,11 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
       - name: Run OpenCode (triage)
         uses: anomalyco/opencode/github@latest
         env:
