@@ -1,0 +1,772 @@
+openapi: 3.0.0
+info:
+  title: Запись на звонок
+  description: |-
+    «Запись на звонок» — упрощённый сервис бронирования времени по мотивам cal.com.
+
+    Роли:
+    - Владелец календаря — единственный профиль, задаётся конфигурацией сервера.
+    - Гость — бронирует слоты без регистрации.
+    Авторизации нет: админские и гостевые эндпоинты открыты (MVP).
+
+    Правила занятости и окна записи:
+    - Окно записи: 14 дней, начиная с сегодняшней даты (UTC).
+    - Сетка слотов: 15 минут — начало брони должно быть кратно 15 минутам.
+    - Слот имеет длину `durationMinutes` выбранного типа события и должен целиком
+    помещаться в рабочие часы этого дня.
+    - Рабочие часы: расписание владельца по умолчанию (PUT /schedule) либо
+    собственное расписание типа события (`availability`), если задано — оно в приоритете.
+    - Пересечение броней запрещено: на одно время нельзя создать две записи,
+    даже для разных типов событий.
+    - Все даты и время передаются в ISO 8601 в UTC. Рабочие часы интерпретируются в UTC.
+  version: 0.0.0
+tags: []
+paths:
+  /auth/login:
+    post:
+      operationId: Auth_login
+      description: |-
+        Вход владельца по логину и паролю. При успехе устанавливает httpOnly cookie
+        `owner_session`. При неверных данных — 401 `INVALID_CREDENTIALS`.
+        При превышении лимита неудачных попыток — 429 `LOGIN_ATTEMPTS_EXCEEDED`.
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          headers:
+            Set-Cookie:
+              required: true
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSuccess'
+        '401':
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedError'
+        '429':
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginThrottledError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OwnerLogin'
+  /bookings:
+    post:
+      operationId: Bookings_create
+      description: |-
+        Создать бронирование (гость). Начало должно быть кратно 15 минутам,
+        попадать в окно 14 дней и в свободный слот.
+      parameters: []
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotFoundError'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingCreate'
+    get:
+      operationId: Bookings_list
+      description: Предстоящие брони всех типов событий (startsAt >= сейчас), по возрастанию startsAt.
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Booking'
+        '401':
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedError'
+  /event-types:
+    get:
+      operationId: EventTypes_list
+      description: Список всех типов событий. Используется гостем и владельцем.
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EventType'
+    post:
+      operationId: EventTypes_create
+      description: Создать тип события. id (slug) задаёт владелец, дубликат → 409.
+      parameters: []
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventType'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedError'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventType'
+  /event-types/{eventTypeId}:
+    get:
+      operationId: EventTypes_get
+      description: Получить тип события по id.
+      parameters:
+        - name: eventTypeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventType'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotFoundError'
+    put:
+      operationId: EventTypes_update
+      description: Обновить тип события. Поле id в теле игнорируется.
+      parameters:
+        - name: eventTypeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventType'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedError'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotFoundError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EventType'
+    delete:
+      operationId: EventTypes_delete
+      description: |-
+        Удалить тип события. Существующие брони этого типа сохраняются,
+        новые — создать нельзя (404).
+      parameters:
+        - name: eventTypeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        '401':
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedError'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotFoundError'
+  /event-types/{eventTypeId}/slots:
+    get:
+      operationId: EventTypes_listSlots
+      description: |-
+        Свободные слоты типа события на окно записи (14 дней).
+        Слот предлагается, если событие целиком помещается в рабочие часы дня
+        и не пересекается с существующими бронями.
+      parameters:
+        - name: eventTypeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SlotsResponse'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotFoundError'
+  /guest:
+    get:
+      operationId: Guest_get
+      description: |-
+        Профиль гостя по известной cookie `guest_id`. Без cookie или с неизвестной
+        cookie — 404 `GUEST_UNKNOWN`.
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestProfile'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestUnknownError'
+    post:
+      operationId: Guest_create
+      description: |-
+        Создать/идентифицировать гостя. При `rememberMe=true` cookie `guest_id`
+        выдаётся со сроком 30 дней, иначе — сессионная. Без контакта — 400.
+      parameters: []
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+          headers:
+            Set-Cookie:
+              required: true
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestProfile'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestUnknownError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuestCreate'
+    put:
+      operationId: Guest_update
+      description: |-
+        Обновить профиль знакомого гостя. Без валидной cookie `guest_id` — 404
+        `GUEST_UNKNOWN`.
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestProfile'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GuestUnknownError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuestProfile'
+  /schedule:
+    get:
+      operationId: Schedule_get
+      description: Текущее расписание владельца по умолчанию.
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklySchedule'
+        '401':
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedError'
+    put:
+      operationId: Schedule_update
+      description: Полностью заменить расписание владельца по умолчанию.
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeeklySchedule'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BadRequestError'
+        '401':
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnauthorizedError'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeeklySchedule'
+components:
+  schemas:
+    AuthSuccess:
+      type: object
+      required:
+        - ok
+      properties:
+        ok:
+          type: boolean
+          enum:
+            - true
+      description: 'Успешный вход: сессия выдаётся через httpOnly cookie `owner_session`.'
+    BadRequestError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum:
+            - VALIDATION_ERROR
+            - CONTACT_REQUIRED
+            - SLOT_MISALIGNED
+            - SLOT_OUT_OF_WINDOW
+            - SLOT_OUTSIDE_SCHEDULE
+        message:
+          type: string
+    Booking:
+      type: object
+      required:
+        - id
+        - eventType
+        - startsAt
+        - endsAt
+        - guestName
+        - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventType:
+          $ref: '#/components/schemas/BookingEventType'
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        guestName:
+          type: string
+        guestPhone:
+          type: string
+        guestEmail:
+          type: string
+        guestComment:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      description: Бронирование.
+    BookingCreate:
+      type: object
+      required:
+        - eventTypeId
+        - startsAt
+        - guestName
+      properties:
+        eventTypeId:
+          type: string
+          description: id (slug) выбранного типа события.
+        startsAt:
+          type: string
+          format: date-time
+          description: Начало слота, ISO 8601 UTC. Кратно 15 минутам и внутри окна записи.
+        guestName:
+          type: string
+        guestPhone:
+          type: string
+          description: 'Телефон гостя. Обязателен хотя бы один контакт: guestPhone или guestEmail.'
+        guestEmail:
+          type: string
+          format: email
+          description: 'Email гостя. Обязателен хотя бы один контакт: guestPhone или guestEmail.'
+        guestComment:
+          type: string
+      description: Данные для создания бронирования.
+    BookingEventType:
+      type: object
+      required:
+        - id
+        - title
+        - durationMinutes
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        durationMinutes:
+          type: integer
+          format: int32
+      description: Снимок типа события на момент бронирования. Хранится даже после удаления типа.
+    ConflictError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum:
+            - DUPLICATE_EVENT_TYPE_ID
+            - SLOT_BUSY
+        message:
+          type: string
+    EventType:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - durationMinutes
+      properties:
+        id:
+          type: string
+          maxLength: 63
+          pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
+          description: 'Уникальный идентификатор (slug), задаётся владельцем при создании. Пример: "intro-call".'
+        title:
+          type: string
+          description: 'Название, отображается гостю. Пример: "Знакомственный звонок".'
+        description:
+          type: string
+          description: Описание для страницы выбора вида брони.
+        durationMinutes:
+          type: integer
+          format: int32
+          minimum: 15
+          maximum: 180
+          description: Длительность встречи в минутах, кратна сетке слотов (15 минут).
+        availability:
+          allOf:
+            - $ref: '#/components/schemas/WeeklySchedule'
+          description: |-
+            Собственное расписание доступности. Если не задано — используется
+            расписание владельца по умолчанию (GET/PUT /schedule).
+      description: Тип события — вид брони, который публикует владелец календаря.
+    GuestCreate:
+      type: object
+      required:
+        - name
+        - rememberMe
+      properties:
+        name:
+          type: string
+          description: Имя гостя.
+        guestPhone:
+          type: string
+          description: Телефон гостя.
+        guestEmail:
+          type: string
+          format: email
+          description: Email гостя.
+        rememberMe:
+          type: boolean
+          description: Запомнить гостя на 30 дней (cookie `guest_id` со сроком 30 дней).
+      description: Данные для создания/идентификации гостя.
+    GuestIdCookie:
+      type: object
+      description: Идентификация гостя происходит по httpOnly cookie `guest_id`.
+    GuestProfile:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: string
+          description: Идентификатор гостя (совпадает с cookie `guest_id`).
+        name:
+          type: string
+          description: Имя гостя.
+        guestPhone:
+          type: string
+          description: Телефон гостя.
+        guestEmail:
+          type: string
+          format: email
+          description: Email гостя.
+      description: Профиль гостя, идентифицируемый по httpOnly cookie `guest_id`.
+    GuestUnknownError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum:
+            - GUEST_UNKNOWN
+        message:
+          type: string
+    LoginThrottledError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum:
+            - LOGIN_ATTEMPTS_EXCEEDED
+        message:
+          type: string
+    NotFoundError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum:
+            - EVENT_TYPE_NOT_FOUND
+        message:
+          type: string
+    OwnerLogin:
+      type: object
+      required:
+        - login
+        - password
+      properties:
+        login:
+          type: string
+          description: Логин владельца, задан статически при старте сервера.
+        password:
+          type: string
+          description: Пароль владельца, задан статически при старте сервера.
+      description: Данные для входа владельца.
+    OwnerSessionCookie:
+      type: object
+      description: Сессия владельца выдаётся в httpOnly cookie `owner_session`.
+    Slot:
+      type: object
+      required:
+        - startsAt
+        - endsAt
+      properties:
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+      description: Свободный слот длиной в длительность типа события.
+    SlotsResponse:
+      type: object
+      required:
+        - windowStartsOn
+        - windowEndsOn
+        - slots
+      properties:
+        windowStartsOn:
+          type: string
+          format: date
+          description: Первый день окна записи — сегодня (UTC).
+        windowEndsOn:
+          type: string
+          format: date
+          description: Последний день окна записи (14 дней, включая сегодняшний).
+        slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/Slot'
+          description: Свободные слоты по возрастанию startsAt.
+      description: Ответ со свободными слотами на окно записи.
+    TimeInterval:
+      type: object
+      required:
+        - start
+        - end
+      properties:
+        start:
+          type: string
+          format: time
+          description: Начало интервала, формат HH:mm.
+        end:
+          type: string
+          format: time
+          description: Конец интервала, формат HH:mm. Должен быть больше начала.
+      description: Интервал рабочего времени внутри дня, например 09:00–13:00.
+    UnauthorizedError:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum:
+            - INVALID_CREDENTIALS
+            - NO_OWNER_SESSION
+        message:
+          type: string
+    WeeklySchedule:
+      type: object
+      required:
+        - mon
+        - tue
+        - wed
+        - thu
+        - fri
+        - sat
+        - sun
+      properties:
+        mon:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+          description: Понедельник.
+        tue:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+          description: Вторник.
+        wed:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+          description: Среда.
+        thu:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+          description: Четверг.
+        fri:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+          description: Пятница.
+        sat:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+          description: Суббота.
+        sun:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimeInterval'
+          description: Воскресенье.
+      description: Недельное расписание. Пустой массив интервалов — день недоступен.
+servers:
+  - url: http://localhost:8080/api
+    description: Сервер разработки
+    variables: {}

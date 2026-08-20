@@ -1,0 +1,19 @@
+# Build context — корень репозитория (Dockerfile в корне)
+
+.git
+.github
+.opencode
+.agents
+.playwright-mcp
+openspec
+spec
+
+**/node_modules
+**/dist
+**/test-results
+**/.env
+**/*.exe
+
+*.png
+*.md
+Makefile
