@@ -1,0 +1,39 @@
+name: Implement from Issue (opencode)
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  implement:
+    if: contains(github.event.comment.body, '/implement')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Run OpenCode (implement)
+        uses: anomalyco/opencode/github@latest
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          model: ${{ vars.OPENCODE_MODEL || 'anthropic/claude-sonnet-4-20250514' }}
+          use_github_token: true
+          mentions: /implement
+          prompt: |
+            Реализуй задачу из этого issue и открой pull request.
+
+            Правила:
+            - Следуй AGENTS.md репозитория: команды через Makefile, коммиты в стиле Conventional Commits, не смешивай правки frontend и backend без необходимости.
+            - Имена веток — стабильные: `agent/<issue-number>-<slug>`. Если ветка уже существует — работай в ней, НЕ создавай дублирующий PR.
+            - Описание PR должно содержать `Closes #<issue-number>`.
+            - Перед завершением прогони проверки: lint, тесты, сборку (по Makefile).

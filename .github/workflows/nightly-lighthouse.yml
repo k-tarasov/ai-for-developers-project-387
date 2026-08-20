@@ -1,0 +1,124 @@
+name: Nightly Lighthouse
+
+on:
+  schedule:
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Check PROD_URL
+        id: check-url
+        run: |
+          if [ -z "${{ vars.PROD_URL }}" ]; then
+            echo "PROD_URL is not configured. Skipping nightly Lighthouse check."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Node
+        if: steps.check-url.outputs.configured == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Lighthouse
+        if: steps.check-url.outputs.configured == 'true'
+        run: npm install -g lighthouse@12
+
+      - name: Run Lighthouse (with retry)
+        if: steps.check-url.outputs.configured == 'true'
+        id: run-lighthouse
+        env:
+          PROD_URL: ${{ vars.PROD_URL }}
+          PERF_THRESHOLD: ${{ vars.LH_PERF_THRESHOLD || '80' }}
+        run: |
+          set -euo pipefail
+          mkdir -p ./lighthouse-report
+          url="$PROD_URL"
+          threshold="$PERF_THRESHOLD"
+          attempt=1
+          max_attempts=2
+          failed="false"
+
+          while true; do
+            echo "--- Lighthouse attempt $attempt of $max_attempts ---"
+            if lighthouse "$url" \
+              --chrome-flags="--headless --no-sandbox --disable-gpu" \
+              --output=json \
+              --output-path="./lighthouse-report/report.json" \
+              --quiet; then
+              break
+            else
+              if [ "$attempt" -lt "$max_attempts" ]; then
+                echo "Lighthouse run $attempt failed, retrying..."
+                attempt=$((attempt + 1))
+                sleep 5
+              else
+                echo "Lighthouse run failed after $max_attempts attempts."
+                failed="true"
+                break
+              fi
+            fi
+          done
+
+          if [ "$failed" = "true" ]; then
+            echo "result=failure" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+
+          performance=$(node -e "const r=require('./lighthouse-report/report.json'); console.log(Math.round(r.categories.performance.score*100))")
+          accessibility=$(node -e "const r=require('./lighthouse-report/report.json'); console.log(Math.round(r.categories.accessibility.score*100))")
+          best_practices=$(node -e "const r=require('./lighthouse-report/report.json'); console.log(Math.round(r.categories['best-practices'].score*100))")
+          seo=$(node -e "const r=require('./lighthouse-report/report.json'); console.log(Math.round(r.categories.seo.score*100))")
+
+          echo "performance=${performance}" >> "$GITHUB_OUTPUT"
+          echo "accessibility=${accessibility}" >> "$GITHUB_OUTPUT"
+          echo "best_practices=${best_practices}" >> "$GITHUB_OUTPUT"
+          echo "seo=${seo}" >> "$GITHUB_OUTPUT"
+
+          echo "Scores: performance=$performance accessibility=$accessibility best-practices=$best_practices seo=$seo"
+          if [ "$performance" -lt "$threshold" ]; then
+            echo "Performance score $performance is below threshold $threshold."
+            exit 1
+          fi
+
+      - name: Upload Lighthouse report
+        if: always() && steps.check-url.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lighthouse-report
+          path: lighthouse-report/
+          retention-days: 14
+
+      - name: Open issue on failure
+        if: failure() && steps.check-url.outputs.configured == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PROD_URL: ${{ vars.PROD_URL }}
+        run: |
+          mkdir -p ./lighthouse-report
+          cat > ./lighthouse-report/issue-body.md <<EOF
+          ## Nightly Lighthouse check failed
+
+          **URL:** $PROD_URL
+          **Scores:**
+          - Performance: ${{ steps.run-lighthouse.outputs.performance }}
+          - Accessibility: ${{ steps.run-lighthouse.outputs.accessibility }}
+          - Best practices: ${{ steps.run-lighthouse.outputs.best_practices }}
+          - SEO: ${{ steps.run-lighthouse.outputs.seo }}
+
+          Отчёт сохранён в артефакте workflow (lighthouse-report). Проверьте метрики производительности.
+          EOF
+          gh issue create \
+            --title "Nightly Lighthouse check failed ($(date +%Y-%m-%d))" \
+            --body-file ./lighthouse-report/issue-body.md

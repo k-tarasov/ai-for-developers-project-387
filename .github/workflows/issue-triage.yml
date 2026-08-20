@@ -1,0 +1,40 @@
+name: Issue Triage (opencode)
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Run OpenCode (triage)
+        uses: anomalyco/opencode/github@latest
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          model: ${{ vars.OPENCODE_MODEL || 'anthropic/claude-sonnet-4-20250514' }}
+          use_github_token: true
+          prompt: |
+            Проанализируй этот issue (triage).
+
+            Требования к ответу (комментарий в issue):
+            - Кратко переформулируй задачу своими словами (1-2 предложения).
+            - Отметь, к какой части проекта относится задача: backend (Go), frontend (React) или и то и другое.
+            - Если описание неполное или неоднозначное — задай 2-3 уточняющих вопроса и НЕ выполняй реализацию.
+            - Если задача понятна — предложи следующий шаг: комментарий `/implement`, который запустит создание PR.
+            - Оцени сложность: простая / средняя / сложная.
+
+            Не изменяй код. Только оставь комментарий.

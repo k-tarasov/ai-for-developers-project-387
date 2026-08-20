@@ -1,0 +1,42 @@
+name: PR Review Respond (opencode)
+
+on:
+  pull_request_review_comment:
+    types: [created]
+  issue_comment:
+    types: [created]
+
+jobs:
+  review-fix:
+    if: contains(github.event.comment.body, '/review-fix')
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Run OpenCode (review-fix)
+        uses: anomalyco/opencode/github@latest
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          model: ${{ vars.OPENCODE_MODEL || 'anthropic/claude-sonnet-4-20250514' }}
+          use_github_token: true
+          mentions: /review-fix
+          prompt: |
+            Внеси правки по замечаниям ревью в существующий pull request.
+
+            Правила:
+            - Проанализируй все комментарии ревью в этом PR (включая комментарии на конкретные строки кода).
+            - Вноси изменения в ветку этого же PR — НЕ создавай новый PR.
+            - Следуй AGENTS.md репозитория: команды через Makefile, коммиты в стиле Conventional Commits.
+            - После правок прогони проверки: lint, тесты, сборку (по Makefile).
+            - Если открытого PR для этой задачи нет — сообщи об этом в комментарии и НЕ выполняй изменений.
