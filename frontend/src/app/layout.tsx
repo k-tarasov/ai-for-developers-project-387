@@ -2,7 +2,13 @@ import { NavLink, Outlet, useNavigate } from 'react-router'
 
 import { useOwnerAuth } from '@/auth/use-owner-session'
 import { OwnerLoginDialog } from '@/components/owner-login-dialog'
-import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
 const guestLinks = [{ to: '/', label: 'Записаться' }]
@@ -51,31 +57,39 @@ export function Layout() {
             ))}
           </nav>
 
-          <button
-            type="button"
-            onClick={() => (isOwner ? navigate('/admin/event-types') : openLogin())}
-            className={cn(
-              'rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground',
-            )}
-          >
-            Админка
-          </button>
-
-          {isOwner && (
-            <>
-              <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                Владелец
-              </span>
-              <nav className="flex items-center gap-1">
-                {ownerLinks.map((link) => (
-                  <NavItem key={link.to} {...link} />
-                ))}
-              </nav>
-              <Button variant="outline" size="sm" onClick={handleLogout}>
-                Выйти
-              </Button>
-            </>
-          )}
+          <div className="ml-auto">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className={cn(
+                  'rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground',
+                )}
+              >
+                Админка
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {isOwner ? (
+                  <>
+                    {ownerLinks.map((link) => (
+                      <DropdownMenuItem
+                        key={link.to}
+                        onClick={() => void navigate(link.to)}
+                      >
+                        {link.label}
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleLogout}>
+                      Выйти
+                    </DropdownMenuItem>
+                  </>
+                ) : (
+                  <DropdownMenuItem onClick={openLogin}>
+                    Войти
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </header>
 
