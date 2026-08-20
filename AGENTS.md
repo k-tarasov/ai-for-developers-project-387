@@ -13,7 +13,11 @@
 
 ## Команды
 
-Все команды сборки, линтера и тестов — через корневой `Makefile` (когда появится). Перед запуском команд смотри доступные цели в нём, а не угадывай команды напрямую (`npm run`, `go test` и т.п. — только если цели в Makefile нет).
+Все команды — через корневой `Makefile`. Перед запуском смотри доступные цели в нём, а не угадывай команды напрямую. Прямые вызовы (`npm run`, `go test`) — только если подходящей цели в Makefile нет.
+
+Фронтенд: `make lint` / `make test` / `make build` / `make dev` / `make dev-mock` / `make format` / `make e2e`.
+Бэкенд: `make be-lint` / `make be-test` / `make be-build` / `make be-run` / `make be-generate` / `make be-docker-build`.
+Спека (TypeSpec → OpenAPI): `make spec`.
 
 Типовой порядок проверки перед завершением работы: линтер -> тесты -> сборка.
 
