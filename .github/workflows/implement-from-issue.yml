@@ -24,6 +24,7 @@ jobs:
         uses: anomalyco/opencode/github@latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         with:
           model: ${{ vars.OPENCODE_MODEL || 'opencode/big-pickle' }}
           use_github_token: true
