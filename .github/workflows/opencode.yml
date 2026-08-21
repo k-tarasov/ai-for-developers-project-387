@@ -32,6 +32,10 @@ jobs:
         uses: actions/checkout@v6
         with:
           persist-credentials: false
+          
+      - name: Debug event payload
+        run: |
+          echo "${{ toJSON(github.event) }}"
 
       # - name: Configure git identity
       #   run: |
