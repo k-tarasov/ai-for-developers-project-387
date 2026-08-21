@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.1](https://github.com/k-tarasov/ai-for-developers-project-387/compare/v0.2.0...v0.2.1) (2026-08-21)
+
+
+### Bug Fixes
+
+* changes envs in oc workflows ([81c4e36](https://github.com/k-tarasov/ai-for-developers-project-387/commit/81c4e36cdad0534eb238c8af2b971ca0e1771775))
+* ci git confiure ([f793f29](https://github.com/k-tarasov/ai-for-developers-project-387/commit/f793f2969b64819c7c4914dd11c699ca6214a742))
+* **ci:** configure git identity for opencode agent commits ([a37b352](https://github.com/k-tarasov/ai-for-developers-project-387/commit/a37b35221162b88f08e230b3257f91e7218d6489))
+* prompts changes for workflow ([af0df71](https://github.com/k-tarasov/ai-for-developers-project-387/commit/af0df710abbb897f59a7efcc366b0b30d1829a5b))
+* steps in opencode wf ([6d5f29b](https://github.com/k-tarasov/ai-for-developers-project-387/commit/6d5f29b7e9499139edeb22adc0c667f7d62eb1fa))
+
 ## [0.2.0](https://github.com/k-tarasov/ai-for-developers-project-386/compare/v0.1.0...v0.2.0) (2026-08-18)
 
 
