@@ -1,6 +1,6 @@
 ---
 name: commit
-description: Создание git-коммитов с сообщениями в Angular conventional commits стиле (feat, fix, docs и т.д.). Использовать, когда пользователь просит сделать коммит, закоммитить изменения или написать сообщение коммита.
+description: Создание git-коммитов с сообщениями в Angular commits стиле (feat, fix, docs и т.д.). Использовать, когда пользователь явно просит сделать Angular коммит или написать сообщение коммита в Angular стиле.
 ---
 
 # Коммиты в Angular стиле (Conventional Commits)
