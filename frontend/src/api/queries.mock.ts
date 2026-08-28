@@ -324,8 +324,8 @@ export function useCreateBooking() {
       }
       return delay(booking)
     },
-    onSuccess: (_data, variables) => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.slots(variables.eventTypeId) })
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['slots'] })
       void queryClient.invalidateQueries({ queryKey: queryKeys.bookings })
     },
   })
