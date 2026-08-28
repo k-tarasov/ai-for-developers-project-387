@@ -27,6 +27,25 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Block git pushes to main
+        run: |
+          HOOK_DIR="$RUNNER_TEMP/git-hooks"
+          mkdir -p "$HOOK_DIR"
+          git config --global core.hooksPath "$HOOK_DIR"
+          cat > "$HOOK_DIR/pre-push" <<'EOF'
+          #!/bin/bash
+          while read local_ref local_sha remote_ref remote_sha; do
+            case "$remote_ref" in
+              refs/heads/main)
+                echo "BLOCKED: pushing to 'main' is forbidden" >&2
+                exit 1
+                ;;
+            esac
+          done
+          exit 0
+          EOF
+          chmod +x "$HOOK_DIR/pre-push"
+
       # - name: Configure git identity
       #   run: |
       #     git config user.name "github-actions[bot]"
