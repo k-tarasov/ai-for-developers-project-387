@@ -52,10 +52,6 @@ jobs:
           EOF
           chmod +x "$HOOK_DIR/pre-push"
 
-      - name: Debug event payload
-        run: |
-          echo "${{ toJSON(github.event) }}"
-
       - name: Configure git identity
         run: |
           git config user.name "github-actions[bot]"
