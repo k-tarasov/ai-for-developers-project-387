@@ -1,6 +1,6 @@
 ---
 name: split-commits
-description: Use when the git working tree or staging area contains a large or mixed set of changes that should be broken into multiple small logical commits following Conventional Commits rules.
+description: Use when the git working tree or staging area contains a large or mixed set of changes that should be broken into multiple small logical commits following Conventional Commits rules. Используй когда требуется делать коммиты в стиле Conventional Commits
 ---
 
 # Разбиение изменений на серию логических коммитов
