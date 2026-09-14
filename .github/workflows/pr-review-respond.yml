@@ -9,6 +9,7 @@ on:
 jobs:
   review-fix:
     if: |
+      (github.event_name == 'pull_request_review_comment' || github.event.issue.pull_request) &&
       contains(github.event.comment.body, '/review-fix') &&
       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.comment.author_association) &&
       github.event.comment.user.type != 'Bot'
@@ -122,6 +123,13 @@ jobs:
             - Вноси изменения в ветку этого же PR — НЕ создавай новый PR.
             - Следуй AGENTS.md репозитория: команды через Makefile,
               коммиты в стиле Conventional Commits.
+            - Каждый новый коммит и заголовок PR — `type(scope): описание`,
+              например `fix(frontend): обновить кэш слотов`.
+              Самостоятельно создай коммит с корректным сообщением до итогового
+              ответа; старые опубликованные коммиты не переписывай.
+            - Прочитай оба канала: общие комментарии PR и построчные комментарии
+              в diff. В ответе сопоставь каждое замечание с исправлением,
+              результатом проверки и SHA нового коммита.
             - После правок прогони проверки: lint, тесты, сборку (по
               Makefile).
             - Если открытого PR для этой задачи нет — сообщи об этом в
