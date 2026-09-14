@@ -63,8 +63,8 @@ export function useCreateBooking() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (body: BookingCreate) => unwrap(api.POST('/bookings', { body })),
-    onSuccess: (_data, variables) => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.slots(variables.eventTypeId) })
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['slots'] })
       void queryClient.invalidateQueries({ queryKey: queryKeys.bookings })
     },
   })
