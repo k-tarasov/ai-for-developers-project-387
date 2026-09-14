@@ -70,22 +70,15 @@ export function Layout() {
                 {isOwner ? (
                   <>
                     {ownerLinks.map((link) => (
-                      <DropdownMenuItem
-                        key={link.to}
-                        onClick={() => void navigate(link.to)}
-                      >
+                      <DropdownMenuItem key={link.to} onClick={() => void navigate(link.to)}>
                         {link.label}
                       </DropdownMenuItem>
                     ))}
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleLogout}>
-                      Выйти
-                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleLogout}>Выйти</DropdownMenuItem>
                   </>
                 ) : (
-                  <DropdownMenuItem onClick={openLogin}>
-                    Войти
-                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={openLogin}>Войти</DropdownMenuItem>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
