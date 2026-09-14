@@ -65,6 +65,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          OPENCODE_PERMISSION: '{"external_directory":{"*":"deny","/tmp/*":"allow","${{ runner.temp }}/*":"allow"},"doom_loop":"deny"}'
         with:
           model: ${{ vars.OPENCODE_MODEL || 'opencode/big-pickle' }}
           use_github_token: true
