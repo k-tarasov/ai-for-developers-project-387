@@ -19,6 +19,7 @@ import {
 /** Вход владельца через диалог в интерфейсе. */
 async function loginViaDialog(page: Page, login: string, password: string) {
   await page.getByRole('button', { name: 'Админка' }).click()
+  await page.getByRole('menuitem', { name: 'Войти' }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog.getByText('Вход для владельца')).toBeVisible()
   await page.locator('#owner-login').fill(login)
@@ -37,11 +38,13 @@ test.describe('O1. Аутентификация владельца', () => {
     await loginViaDialog(page, OWNER_LOGIN, OWNER_PASSWORD)
 
     await expect(page.getByRole('dialog')).toBeHidden()
-    await expect(page.getByText('Владелец', { exact: true })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Типы событий' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Расписание' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Брони' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Выйти' })).toBeVisible()
+    await page.getByRole('button', { name: 'Админка' }).click()
+    const menu = page.getByRole('menu')
+    await expect(menu).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Типы событий' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Расписание' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Брони' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Выйти' })).toBeVisible()
 
     const cookie = (await page.context().cookies()).find((c) => c.name === 'owner_session')
     expect(cookie).toBeDefined()
@@ -54,7 +57,9 @@ test.describe('O1. Аутентификация владельца', () => {
 
     await expect(page.getByText('Не удалось войти')).toBeVisible()
     await expect(page.getByText('Неверный логин или пароль.')).toBeVisible()
-    await expect(page.getByText('Владелец', { exact: true })).toBeHidden()
+    // Интерфейс владельца не открыт: в menu нет пунктов администратора
+    const isOwner = await page.evaluate(() => localStorage.getItem('owner_session_active'))
+    expect(isOwner).not.toBe('true')
   })
 
   test('O1.3: превышен лимит попыток → сообщение о временной блокировке', async ({
@@ -85,19 +90,59 @@ test.describe('O1. Аутентификация владельца', () => {
   }) => {
     await page.goto('/')
     await loginViaDialog(page, OWNER_LOGIN, OWNER_PASSWORD)
-    await expect(page.getByRole('button', { name: 'Выйти' })).toBeVisible()
+    await page.getByRole('button', { name: 'Админка' }).click()
+    await expect(page.getByRole('menuitem', { name: 'Выйти' })).toBeVisible()
+    await page.keyboard.press('Escape')
 
     await page.reload()
 
     // Повторный вход не требуется: элементы управления владельца на месте.
-    await expect(page.getByText('Владелец', { exact: true })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Типы событий' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Выйти' })).toBeVisible()
+    await page.getByRole('button', { name: 'Админка' }).click()
+    await expect(page.getByRole('menuitem', { name: 'Типы событий' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Расписание' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Брони' })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Выйти' })).toBeVisible()
+  })
+
+  test('O1.5: закрытие меню не закрывает диалог входа', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('button', { name: 'Админка' }).click()
+    const menu = page.getByRole('menu')
+    await expect(menu).toBeVisible()
+    await menu.getByRole('menuitem', { name: 'Войти' }).click()
+
+    // Пункт меню выбран: меню закрывается, диалог входа открыт.
+    await expect(menu).toBeHidden()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByText('Вход для владельца')).toBeVisible()
+  })
+
+  test('O1.6: навигация через меню владельца → переходы по страницам и выход', async ({ page }) => {
+    await page.goto('/')
+    await loginViaDialog(page, OWNER_LOGIN, OWNER_PASSWORD)
+
+    await page.getByRole('button', { name: 'Админка' }).click()
+    await page.getByRole('menuitem', { name: 'Типы событий' }).click()
+    await expect(page.getByRole('heading', { name: 'Типы событий' })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Админка' }).click()
+    await page.getByRole('menuitem', { name: 'Расписание' }).click()
+    await expect(page.getByRole('heading', { name: 'Расписание по умолчанию (UTC)' })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Админка' }).click()
+    await page.getByRole('menuitem', { name: 'Брони' }).click()
+    await expect(page.getByRole('heading', { name: 'Предстоящие брони' })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Админка' }).click()
+    await page.getByRole('menuitem', { name: 'Выйти' }).click()
+    await expect(page).toHaveURL('/')
+    await page.getByRole('button', { name: 'Админка' }).click()
+    await expect(page.getByRole('menuitem', { name: 'Войти' })).toBeVisible()
   })
 })
 
 test.describe('O2. Шапка / навигация', () => {
-  test('O2.1: гость без сессии видит ровно две кнопки', async ({ page }) => {
+  test('O2.1: гость без сессии видит только точки входа, админ-ссылки скрыты', async ({ page }) => {
     await page.goto('/')
 
     await expect(page.getByRole('link', { name: 'Записаться' })).toBeVisible()
@@ -106,18 +151,32 @@ test.describe('O2. Шапка / навигация', () => {
     await expect(page.getByRole('link', { name: 'Расписание' })).toBeHidden()
     await expect(page.getByRole('link', { name: 'Брони' })).toBeHidden()
     await expect(page.getByRole('button', { name: 'Выйти' })).toBeHidden()
+
+    // В меню у гостя только пункт «Войти».
+    await page.getByRole('button', { name: 'Админка' }).click()
+    const menu = page.getByRole('menu')
+    await expect(menu).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Войти' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Типы событий' })).toBeHidden()
+    await expect(menu.getByRole('menuitem', { name: 'Расписание' })).toBeHidden()
+    await expect(menu.getByRole('menuitem', { name: 'Брони' })).toBeHidden()
+    await expect(menu.getByRole('menuitem', { name: 'Выйти' })).toBeHidden()
   })
 
-  test('O2.2: после входа показываются все элементы управления владельца', async ({ page }) => {
+  test('O2.2: после входа в меню показываются все элементы управления владельца', async ({
+    page,
+  }) => {
     await page.goto('/')
     await loginViaDialog(page, OWNER_LOGIN, OWNER_PASSWORD)
 
     await expect(page.getByRole('link', { name: 'Записаться' })).toBeVisible()
-    await expect(page.getByText('Владелец', { exact: true })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Типы событий' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Расписание' })).toBeVisible()
-    await expect(page.getByRole('link', { name: 'Брони' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Выйти' })).toBeVisible()
+    await page.getByRole('button', { name: 'Админка' }).click()
+    const menu = page.getByRole('menu')
+    await expect(menu).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Типы событий' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Расписание' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Брони' })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name: 'Выйти' })).toBeVisible()
   })
 })
 
