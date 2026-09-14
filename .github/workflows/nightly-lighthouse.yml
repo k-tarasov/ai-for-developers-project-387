@@ -30,6 +30,7 @@ jobs:
           REPORT_DIR="$RUNNER_TEMP/lighthouse-report"
           echo "REPORT_DIR=$REPORT_DIR" >> "$GITHUB_ENV"
           node <<'NODE'
+          if (!process.env.PROD_URL?.trim()) throw new Error('PROD_URL is not configured');
           const url = new URL(process.env.PROD_URL);
           if (!['http:', 'https:'].includes(url.protocol)) throw new Error('PROD_URL must use HTTP(S)');
           const threshold = Number(process.env.PERF_THRESHOLD);
