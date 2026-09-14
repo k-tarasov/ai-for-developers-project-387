@@ -2,20 +2,22 @@ name: PR Auto Review (opencode)
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   auto-review:
-    if: github.event.pull_request.user.type != 'Bot'
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !github.event.pull_request.draft
     runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
       group: auto-review-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     permissions:
+      id-token: write
       contents: read
       pull-requests: write
-      issues: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -31,6 +33,7 @@ jobs:
         with:
           model: ${{ vars.OPENCODE_MODEL || 'opencode/big-pickle' }}
           use_github_token: true
+          share: false
           prompt: |
             # Роль
 
@@ -54,14 +57,16 @@ jobs:
 
             # Задача
 
-            Проведи ревью изменений в этом PR и оставь ОДИН комментарий
-            (либо построчные review-комментарии, если инструмент это
-            поддерживает) с замечаниями.
+            Проведи ревью изменений в этом PR. Верни один итоговый ответ:
+            action автоматически опубликует его комментарием в PR.
+            Самостоятельно итоговый комментарий не отправляй.
 
             Требования к ревью:
             - Проверь код на соответствие AGENTS.md репозитория (стиль,
               структура, конвенции).
-            - Отметь потенциные баги, отсутствующие тесты, проблемы
+            - Проверь Conventional Commits для новых коммитов и заголовка PR
+              по разделу «Коммиты и pull requests» в AGENTS.md.
+            - Отметь потенциальные баги, отсутствующие тесты, проблемы
               безопасности (например, работу с секретами, инъекции,
               небезопасные зависимости).
             - Если замечаний нет — так и напиши, коротко.
